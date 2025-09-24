@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="style.css">
+<title>BHAG BE</title>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=noviewport-fit=cover">
+
+
+
+</head>
+<body>
+<h1 id="gameTitle" 
+    style="text-align:center; 
+           font-family: 'Arial Black', sans-serif; 
+           font-size: 32px; 
+           color: #ff6600; 
+           text-shadow: 2px 2px 6px #000;">
+  Bhaago Bhoot Aaya  
+  <span style="font-size:18px; color:#fff; display:block; margin-top:5px; font-weight:normal;">
+    By Ramzi Barki
+  </span>
+</h1>
+
+<img src="https://static.vecteezy.com/system/resources/thumbnails/051/570/688/small_2x/2d-white-ghost-animation-expanding-and-swaying-free-video.jpg" 
+     alt="Game Ghost" 
+     style="display:block; margin:10px auto 20px; width:400px; height:auto;">
+
+<input type="text" id="playerNameInput" placeholder="Enter Your Name">
+
+
+<div id="orientationMsg" 
+     style="position:fixed;top:0;left:0;right:0;bottom:0;
+            background:black;color:white;z-index:3000;
+            display:flex;align-items:center;justify-content:center;
+            font-size:5vw;text-align:center;padding:20px;">
+           <b>ROTATE KAR ! </b> </br>
+   <button id="w_button" onclick="hideOrientationMsg()" >
+           OK, Continue
+   </button>
+</div>
+
+
+
+
+
+
+<button id="startBtn">Start Game</button>
+ 
+<!-- Mobile Controls -->
+<!-- Mobile Controls -->
+<div id="mobileControls" style="position:fixed; bottom:20px; left:0; right:0; display:flex; justify-content:space-between; width:100%; pointer-events:none;">
+    
+    <!-- Left side buttons -->
+    <div id="leftControls" style="display:flex; gap:10px; margin-left:20px; pointer-events:auto; opacity:0.7;">
+        <button id="leftBtn" style="width:60px;height:60px;font-size:24px;">◀</button>
+        <button id="rightBtn" style="width:60px;height:60px;font-size:24px;">▶</button>
+    </div>
+    
+    <!-- Right side buttons -->
+    <div id="rightControls" style="display:flex; gap:10px; margin-right:20px; pointer-events:auto; opacity:0.7;">
+        <button id="jumpBtn" style="width:60px;height:60px;font-size:24px;">⬆</button>
+        <button id="shootBtn" style="width:60px;height:60px;font-size:24px;">⚡</button>
+    </div>
+</div>
+
+
+
+
+
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;   /* 🚫 stop scrolling */
+    height: 100%;
+    width: 100%;
+    background: #0a0806;  /* optional background */
+  }
+
+  canvas {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    max-height: 100%;
+  }
+</style>
+
+
+
+
+
+<script>
+    
+    function hideOrientationMsg() {
+    document.getElementById("orientationMsg").style.display = "none";
+}
+
+window.addEventListener("load", () => {
+    if (window.innerWidth > window.innerHeight) {
+        hideOrientationMsg(); // already in landscape
+    }
+});
+
+
+function startGame() {
+    const config = {
+        type: Phaser.AUTO,
+        width: 800,   
+        height: 600,  
+        physics: { 
+            default: 'arcade', 
+            arcade: { gravity: { y: 800 }, debug: false } 
+        },
+        scene: { preload, create, update },
+        scale: {
+            mode: Phaser.Scale.FIT,               // scale to fit
+            autoCenter: Phaser.Scale.CENTER_BOTH, // center canvas
+            orientation: Phaser.Scale.LANDSCAPE   // prefer landscape
+        }
+    };
+    game = new Phaser.Game(config);
+}
+
+
+
+
+
+    function setupMobileControls() {
+    const mapping = [
+        {id:'leftBtn', flag: 'moveLeft'},
+        {id:'rightBtn', flag: 'moveRight'},
+        {id:'jumpBtn', flag: 'jumpPress'},
+        {id:'shootBtn', flag: 'shootPress'}
+    ];
+
+    mapping.forEach(item => {
+        const el = document.getElementById(item.id);
+        el.addEventListener('touchstart', e => { e.preventDefault(); window[item.flag] = true; });
+        el.addEventListener('touchend', e => { e.preventDefault(); window[item.flag] = false; });
+        el.addEventListener('mousedown', e => { e.preventDefault(); window[item.flag] = true; });
+        el.addEventListener('mouseup', e => { e.preventDefault(); window[item.flag] = false; });
+        el.addEventListener('mouseleave', e => { e.preventDefault(); window[item.flag] = false; });
+    });
+}
+
+window.moveLeft=false;
+window.moveRight=false;
+window.jumpPress=false;
+window.shootPress=false;
+
+
+
+let game, player, cursors, platforms, coins, enemies, scoreText, nameText;
+let score = 0, jumpCount = 0, maxJumps = 2;
+let playerName = '', allScores = JSON.parse(localStorage.getItem('gameScores')) || [];
+let playerDirection = 'right';
+let energyBalls, canShoot = false, enemyHealth = 10;
+
+document.getElementById('startBtn').addEventListener('click', () => {
+    playerName = document.getElementById('playerNameInput').value || 'Player';
+    
+    // Hide all intro elements
+    document.getElementById('playerNameInput').style.display = 'none';   // hides the entire input box
+    document.getElementById('startBtn').style.display = 'none';          // hides the start button
+    document.getElementById('gameTitle').style.display = 'none';         // hides the title
+    document.querySelector('img[alt="Game Ghost"]').style.display = 'none'; // hides the ghost image
+
+    startGame();
+});
+
+
+
+
+function startGame() {
+    const config = {
+        type: Phaser.AUTO,
+        width: 800,
+        height: 600,
+        physics: { default:'arcade', arcade:{ gravity:{ y:800 }, debug:false } },
+        scene:{ preload, create, update }
+    };
+    game = new Phaser.Game(config);
+}
+
+function preload() {
+    this.load.image('sky','https://labs.phaser.io/assets/skies/sky4.png');
+    this.load.spritesheet('mario','https://labs.phaser.io/assets/sprites/dude.png',{frameWidth:32, frameHeight:48});
+    this.load.image('coin','coin.png');      // local coin image
+    this.load.image('enemy','enemy.png');    // local enemy image
+    this.load.image('ground','platform.png'); // local platform image
+     this.load.audio('jumpSound', 'jumpsound.mp3');       // jump sound
+    this.load.audio('coinSound', 'coinsound.mp3');       // coin collect sound
+    this.load.audio('heroHit', 'herohit.mp3');      // hero gets hit
+    this.load.audio('enemyHit', 'enemyhit.mp3');    // enemy gets hit
+    this.load.audio('gameWinMusic', 'cheer.mp3'); // your game win music file
+
+    
+}
+
+let jumpSound, coinSound, hitSound, gameWinMusic
+
+
+
+function create() {
+    this.add.image(400,300,'sky');
+
+    
+     jumpSound = this.sound.add('jumpSound');
+    coinSound = this.sound.add('coinSound');
+    heroHitSound = this.sound.add('heroHit');
+    enemyHitSound = this.sound.add('enemyHit');
+
+    gameWinMusic = this.sound.add('gameWinMusic', { loop: true, volume: 0.5 });
+    platforms = this.physics.add.staticGroup();
+    let ground = platforms.create(400,580,'ground').setScale(0.8,0.25).refreshBody();
+    platforms.create(400,400,'ground').setScale(0.3,0.25).refreshBody();
+    platforms.create(50,250,'ground').setScale(0.3,0.25).refreshBody();
+    platforms.create(450,220,'ground').setScale(0.3,0.25).refreshBody();
+
+    player = this.physics.add.sprite(100,450,'mario').setBounce(0.2).setCollideWorldBounds(true).setScale(1.2);
+
+    this.anims.create({ key:'left', frames:this.anims.generateFrameNumbers('mario',{start:0,end:3}), frameRate:10, repeat:-1 });
+    this.anims.create({ key:'turn', frames:[{key:'mario',frame:4}], frameRate:20 });
+    this.anims.create({ key:'right', frames:this.anims.generateFrameNumbers('mario',{start:5,end:8}), frameRate:10, repeat:-1 });
+
+    this.physics.add.collider(player, platforms);
+    cursors = this.input.keyboard.createCursorKeys();
+
+    coins = this.physics.add.group({ key:'coin', repeat:11, setXY:{x:12,y:0,stepX:70} });
+    coins.children.iterate(c=>{ c.setBounceY(Phaser.Math.FloatBetween(0.2,0.4)); c.setScale(0.05); });
+    this.physics.add.collider(coins, platforms);
+    this.physics.add.overlap(player, coins, collectCoin, null, this);
+
+    enemies = this.physics.add.group();
+    let enemy = enemies.create(400,100,'enemy').setBounce(1).setCollideWorldBounds(true).setVelocityX(100).setScale(0.3);
+    this.physics.add.collider(enemies, platforms);
+    this.physics.add.collider(player, enemies, hitEnemy, null, this);
+
+    scoreText = this.add.text(16,16,'Score: 0',{fontSize:'24px', fill:'#000'});
+    nameText = this.add.text(player.x, player.y-50, playerName, {fontSize:'20px', fill:'#ff0'}).setOrigin(0.5);
+
+    energyBalls = this.physics.add.group();
+
+    // Energy ball hits enemy
+    this.physics.add.collider(energyBalls, enemies, (ball, enemy)=>{
+        ball.destroy();
+        enemyHealth--;
+        enemyHitSound.play();
+         enemyHitSound.play();  // sound for normal hit
+        if(enemyHealth <= 0){
+            enemy.destroy();
+            heroGrow(this);
+        }
+    });
+
+    // Energy ball hits floating platforms
+    this.physics.add.collider(energyBalls, platforms, (ball, platform)=>{
+        if(platform.y < 580){ // only destroy floating platforms
+            platform.destroy();
+        }
+        ball.destroy();
+    });
+}
+
+function update() {
+    checkHeroWin.call(this); // 
+    setupMobileControls();
+
+    if(!player) return;
+
+    // Movement and direction
+    if(cursors.left.isDown || moveLeft){
+        player.setVelocityX(-160);
+        player.anims.play('left', true);
+        playerDirection = 'left';
+    } else if(cursors.right.isDown || moveRight){
+        player.setVelocityX(160);
+        player.anims.play('right', true);
+        playerDirection = 'right';
+    } else {
+        player.setVelocityX(0);
+        player.anims.play('turn');
+    }
+
+    // Jump
+    if(player.body.touching.down) jumpCount = 0;
+    if((Phaser.Input.Keyboard.JustDown(cursors.up) || jumpPress) && jumpCount < maxJumps){
+        player.setVelocityY(-500);
+        jumpCount++;
+        jumpPress = false; // reset
+        jumpSound.play();  // play jump sound
+
+        
+    }
+
+    // Shoot energy ball
+    if(canShoot && Phaser.Input.Keyboard.JustDown(cursors.space  || shootPress)){
+        shootEnergyBall(this);
+        shootPress = false; // Reset so holding button doesn't shoot continuousl
+    }
+
+    // Update name above hero
+    if(nameText) nameText.setPosition(player.x, player.y-50);
+}
+
+function shootEnergyBall(scene){
+    let ball = energyBalls.create(player.x, player.y, 'coin'); // replace 'coin' with energy ball image
+    ball.setScale(0.1).setCollideWorldBounds(false);
+
+    let speedX = playerDirection === 'left' ? -300 : 300;
+    let speedY = -300;
+    ball.setVelocityX(speedX).setVelocityY(speedY);
+    ball.body.setGravityY(500);
+
+    scene.time.delayedCall(3000, ()=>ball.destroy());
+}
+
+function collectCoin(player, coin){
+    coin.disableBody(true,true);
+    score+=10;
+    scoreText.setText('Score: '+score);
+    coinSound.play();  //
+
+    if(coins.countActive(true)===0){
+        canShoot = true;
+
+        // Floating Power-Up text
+        let powerBox = this.add.rectangle(400,300,400,60,0x000000,0.5).setOrigin(0.5);
+        let powerText = this.add.text(400,300,'Power Up! Press Power to shoot',{fontSize:'24px',fill:'#ffff00', fontStyle:'bold'}).setOrigin(0.5);
+        this.tweens.add({ targets:[powerBox,powerText], y:280, duration:500, yoyo:true, repeat:-1, ease:'Sine.easeInOut' });
+        this.time.delayedCall(5000, ()=>{ powerBox.destroy(); powerText.destroy(); });
+
+        // Speed up enemy
+        enemies.children.iterate(e=>e.setVelocityX(400));
+    }
+}
+
+function hitEnemy(player, enemy){
+    this.physics.pause();
+    player.setTint(0xff0000);
+    player.anims.play('turn');
+    heroHitSound.play();  // play hero hit sound
+  
+
+    let fullEnemy = this.add.image(400,300,'enemy').setScale(0.1);
+    this.tweens.add({ targets: fullEnemy, scale:2, duration:1000 });
+
+    this.time.delayedCall(1000, ()=>{
+        // Try Again Button
+        let tryBG = this.add.rectangle(300,400,150,50,0x00ff00,1).setOrigin(0.5).setInteractive({useHandCursor:true});
+        let tryText = this.add.text(tryBG.x, tryBG.y,'Try Again',{fontSize:'24px',fill:'#000'}).setOrigin(0.5);
+        tryBG.on('pointerdown', ()=>{
+            game.destroy(true);
+            resetGame();
+        });
+
+        // Quit Button
+        let quitBG = this.add.rectangle(500,400,150,50,0xff0000,1).setOrigin(0.5).setInteractive({useHandCursor:true});
+        let quitText = this.add.text(quitBG.x, quitBG.y,'Quit',{fontSize:'24px',fill:'#fff'}).setOrigin(0.5);
+        quitBG.on('pointerdown', ()=>{
+            allScores.push({name:playerName,score});
+            localStorage.setItem('gameScores', JSON.stringify(allScores));
+            showScores(this);
+        });
+    });
+}
+
+function heroGrow(scene){
+    scene.tweens.add({ targets:player, scale:player.scale+0.5, duration:500, yoyo:true });
+
+    let box = scene.add.rectangle(400,300,400,80,0xff00ff,1).setOrigin(0.5);
+    let colors = [0xff0000,0x00ff00,0x0000ff,0xffff00,0xff00ff];
+    let colorIndex = 0;
+    let colorTimer = scene.time.addEvent({ delay:300, loop:true, callback:()=>{ box.setFillStyle(colors[colorIndex%colors.length],1); colorIndex++; } });
+
+    let text = scene.add.text(400,300,'I am proud of you',{fontSize:'32px',fill:'#fff', fontStyle:'bold'}).setOrigin(0.5);
+    scene.tweens.add({ targets:[box,text], y:280, duration:500, yoyo:true, repeat:-1, ease:'Sine.easeInOut' });
+
+    // Play Again button
+    let playBtn = scene.add.rectangle(400,400,180,60,0x00ff00,1).setOrigin(0.5).setInteractive({useHandCursor:true});
+    let playText = scene.add.text(400,400,'Play Again',{fontSize:'24px',fill:'#000'}).setOrigin(0.5);
+    playBtn.on('pointerdown', ()=>{
+        colorTimer.remove();
+        box.destroy(); text.destroy(); playBtn.destroy(); playText.destroy();
+        game.destroy(true);
+        resetGame();
+    });
+}
+
+function resetGame(){
+    score = 0; jumpCount = 0; enemyHealth = 10; canShoot=false;
+    document.getElementById('playerNameInput').style.display='block';
+    document.getElementById('startBtn').style.display='block';
+}
+
+function showScores(scene){
+    scene.add.rectangle(400,300,800,600,0x000000,0.8);
+    scene.add.text(300,100,'Scores',{fontSize:'40px',fill:'#fff'});
+    allScores.forEach((s,i)=>scene.add.text(300,160+i*30,`${s.name}: ${s.score}`,{fontSize:'24px',fill:'#fff'}));
+
+}
+function checkOrientation() {
+    const rotateMsg = document.getElementById("rotateMsg");
+    if (window.innerHeight > window.innerWidth) {
+        rotateMsg.style.display = "flex";  // show rotate warning
+        document.querySelector("canvas").style.display = "none"; 
+        document.getElementById("mobileControls").style.display = "none";
+    } else {
+        rotateMsg.style.display = "none"; 
+        document.querySelector("canvas").style.display = "block"; 
+        document.getElementById("mobileControls").style.display = "flex";
+    }
+}
+function checkHeroWin() {
+    if (enemies.countActive(true) === 0) { // all enemies defeated
+        if (!gameWinMusic.isPlaying) {
+            gameWinMusic.play();  // play hero win music
+        }
+
+        // Optional: show “You Win!” message
+        this.add.text(400, 300,  { fontSize: '48px', fill: '#fff' }).setOrigin(0.5);
+    }
+}
+
+
+window.addEventListener("resize", checkOrientation);
+window.addEventListener("orientationchange", checkOrientation);
+
+
+    
+</script>
+
+</body>
+</html>
